@@ -12,7 +12,7 @@ from tests.constants import GOOD_PARAMS, OTHER_GOOD_PARAMS, WRONG_PARAMS, PATIEN
 
 
 def get_len(file):
-    with open(file) as f:
+    with open(file, encoding='utf-8') as f:
         return len(f.readlines())
 
 
@@ -31,13 +31,13 @@ def check_log_size(log, increased=False):
     return deco
 
 
-def setup_module(__name__):
+def setup():
     for file in [GOOD_LOG_FILE, ERROR_LOG_FILE, CSV_PATH]:
-        with open(file, 'w') as f:
+        with open(file, 'w', encoding='utf-8') as f:
             f.write('')
 
 
-def teardown_module(__name__):
+def teardown():
     for file in [GOOD_LOG_FILE, ERROR_LOG_FILE, CSV_PATH]:
         os.remove(file)
 
@@ -98,13 +98,12 @@ def test_creation_acceptable_driver_license(driver_license):
 
 
 # неверный тип
+@pytest.mark.parametrize("i", list(range(len(GOOD_PARAMS))))
 @check_log_size("error", increased=True)
 @check_log_size("good")
-def test_creation_wrong_type_params():
-    for i, _ in enumerate(GOOD_PARAMS):
-        patient = Patient(*GOOD_PARAMS[:i], 1.8, *GOOD_PARAMS[i + 1:])
+def test_creation_wrong_type_params(i):
         try:
-            getattr(patient, PATIENT_FIELDS[i])
+            Patient(*GOOD_PARAMS[:i], 1.8, *GOOD_PARAMS[i+1:])
             assert False, f"TypeError for {PATIENT_FIELDS[i]} not invoked"
         except TypeError:
             assert True
@@ -115,9 +114,8 @@ def test_creation_wrong_type_params():
 @check_log_size("error", increased=True)
 @check_log_size("good")
 def test_creation_wrong_params(i):
-    patient = Patient(*GOOD_PARAMS[:i], WRONG_PARAMS[i], *GOOD_PARAMS[i + 1:])
     try:
-        getattr(patient, PATIENT_FIELDS[i])
+        Patient(*GOOD_PARAMS[:i], WRONG_PARAMS[i], *GOOD_PARAMS[i+1:])
         assert False, f"ValueError for {PATIENT_FIELDS[i]} not invoked"
     except ValueError:
         assert True
@@ -133,21 +131,25 @@ def test_create_method_good_params():
 
 
 # обновление параметров
-@pytest.mark.parametrize("patient,field,param", itertools.product(
-    [Patient(*OTHER_GOOD_PARAMS)],
+@pytest.mark.parametrize("patient,field,param", zip(
+    [Patient(*OTHER_GOOD_PARAMS)] * len(PATIENT_FIELDS),
     PATIENT_FIELDS,
     GOOD_PARAMS
 ))
 @check_log_size("error")
 @check_log_size("good", increased=True)
 def test_good_params_assignment(patient, field, param):
-    setattr(patient, field, param)
+    try:
+        setattr(patient, field, param)
+        assert field not in ('first_name', 'last_name'), "First and last names shouldn't be overwritten"
+    except AttributeError:
+        assert field in ('first_name', 'last_name')
 
 
-@pytest.mark.parametrize("patient,field,param", itertools.product(
-    [Patient(*OTHER_GOOD_PARAMS)],
-    PATIENT_FIELDS,
-    [1.4]
+@pytest.mark.parametrize("patient,field,param", zip(
+    [Patient(*OTHER_GOOD_PARAMS)] * len(PATIENT_FIELDS[2:]),
+    PATIENT_FIELDS[2:],
+    [1.4] * len(PATIENT_FIELDS[2:])
 ))
 @check_log_size("error", increased=True)
 @check_log_size("good")
@@ -159,10 +161,10 @@ def test_wrong_type_assignment(patient, field, param):
         assert True
 
 
-@pytest.mark.parametrize("patient,field,param", itertools.product(
-    [Patient(*OTHER_GOOD_PARAMS)],
-    PATIENT_FIELDS,
-    WRONG_PARAMS
+@pytest.mark.parametrize("patient,field,param", zip(
+    [Patient(*OTHER_GOOD_PARAMS)] * len(PATIENT_FIELDS[2:]),
+    PATIENT_FIELDS[2:],
+    WRONG_PARAMS[2:]
 ))
 @check_log_size("error", increased=True)
 @check_log_size("good")
@@ -170,12 +172,12 @@ def test_wrong_type_assignment(patient, field, param):
     try:
         setattr(patient, field, param)
         assert False, f"ValueError for {field} assignment not invoked"
-    except TypeError:
+    except ValueError:
         assert True
 
 
 # метод save
-@check_log_size("csv")
+@check_log_size("csv", increased=True)
 def test_save():
     patient = Patient(*GOOD_PARAMS)
     patient.save()

@@ -25,7 +25,7 @@ GOOD_PARAMS = (
 
 @pytest.fixture()
 def prepare():
-    with open(CSV_PATH, 'w') as f:
+    with open(CSV_PATH, 'w', encoding='utf-8') as f:
         f.write('')
     for params in GOOD_PARAMS:
         Patient(*params).save()
@@ -59,7 +59,7 @@ def test_limit_usual():
 @pytest.mark.usefixtures('prepare')
 def test_limit_add_record():
     collection = PatientCollection(CSV_PATH)
-    limit = collection.limit(len(GOOD_PARAMS))
+    limit = collection.limit(len(GOOD_PARAMS) + 10)
     for _ in range(len(GOOD_PARAMS)):
         next(limit)
     new_patient = Patient("Митрофан", "Космодемьянский", "1999-10-15", "79030000000", PASSPORT_TYPE, "4510 000444")
@@ -73,6 +73,6 @@ def test_limit_add_record():
 def test_limit_remove_records():
     collection = PatientCollection(CSV_PATH)
     limit = collection.limit(4)
-    with open(CSV_PATH, 'w') as f:
+    with open(CSV_PATH, 'w', encoding='utf-8') as f:
         f.write('')
     assert len([_ for _ in limit]) == 0, "Limit works wrong for empty file"
