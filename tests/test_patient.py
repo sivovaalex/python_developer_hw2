@@ -81,7 +81,7 @@ def test_creation_acceptable_passport(passport):
     assert patient.document_id == PASSPORT_FORMAT, "Wrong attribute document_id"
 
 
-@pytest.mark.parametrize('passport', ("00 00000000", "00-00000000", "0 0 0 0 0 0 0 0 0 0", "00/0000-0000"))
+@pytest.mark.parametrize('passport', ("00 0000000", "00-0000000", "0 0 0 0 0 0 0 0 0", "00/000-0000"))
 @check_log_size("error")
 @check_log_size("good", increased=True)
 def test_creation_acceptable_international_passport(passport):
