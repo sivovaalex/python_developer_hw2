@@ -132,18 +132,30 @@ def test_create_method_good_params():
 
 # обновление параметров
 @pytest.mark.parametrize("patient,field,param", zip(
-    [Patient(*OTHER_GOOD_PARAMS)] * len(PATIENT_FIELDS),
-    PATIENT_FIELDS,
-    GOOD_PARAMS
+    [Patient(*OTHER_GOOD_PARAMS)] * len(PATIENT_FIELDS[:2]),
+    PATIENT_FIELDS[:2],
+    GOOD_PARAMS[:2]
+))
+@check_log_size("error", increased=True)
+@check_log_size("good")
+def test_names_assignment(patient, field, param):
+    try:
+        setattr(patient, field, param)
+        assert False, f"Attribute error should be invoked for {field} changing"
+    except AttributeError:
+        assert True
+
+
+@pytest.mark.parametrize("patient,field,param", zip(
+    [Patient(*OTHER_GOOD_PARAMS)] * len(PATIENT_FIELDS[2:]),
+    PATIENT_FIELDS[2:],
+    GOOD_PARAMS[2:]
 ))
 @check_log_size("error")
 @check_log_size("good", increased=True)
 def test_good_params_assignment(patient, field, param):
-    try:
-        setattr(patient, field, param)
-        assert field not in ('first_name', 'last_name'), "First and last names shouldn't be overwritten"
-    except AttributeError:
-        assert field in ('first_name', 'last_name')
+    setattr(patient, field, param)
+    assert getattr(patient, field) == param, f"Attribute {field} did not change"
 
 
 @pytest.mark.parametrize("patient,field,param", zip(
