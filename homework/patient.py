@@ -1,24 +1,104 @@
 import logging
 import csv
 import os
+import sqlite3
+import os.path
+
+logger_e = logging.getLogger("errors")
+logger_e.setLevel(logging.ERROR)
+formatter = logging.Formatter("%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s")
+logger_s = logging.getLogger("success")
+logger_s.setLevel(logging.INFO)
+
+
+def my_logging_decorator(fn):
+    def log_error(mes):
+        handler_e = logging.FileHandler('error_log.txt', 'a', 'utf-8')
+        handler_e.setFormatter(formatter)
+        logger_e.addHandler(handler_e)
+        logger_e.error(mes)
+        logger_e.removeHandler(handler_e)
+
+    def log_good(mes):
+        handler_s = logging.FileHandler('good_log.txt', 'a', 'utf-8')
+        handler_s.setFormatter(formatter)
+        logger_s.addHandler(handler_s)
+        logger_s.info(mes)
+        logger_s.removeHandler(handler_s)
+
+    def wrapper(*args, **kwargs):
+        try:
+            fn(*args, **kwargs)
+        except AttributeError:
+            log_error("AttributeError:Имя и фамилия не должны меняться")
+            raise AttributeError('Имя и фамилия не должны меняться')
+        except TypeError:
+            log_error("TypeError: не правильный тип ввода")
+            raise TypeError('не правильный тип ввода')
+        except ValueError:
+            log_error("ValueError:неправильное значение ввода")
+            raise ValueError('неправильное значение ввода')
+        except OSError:
+            log_error("Ошибка системы: Данные не сохранены")
+            raise OSError("Ошибка системы: Данные не сохранены")
+        except UnicodeError:
+            log_error("Ошибка кодировки: Данные не сохранены")
+            raise UnicodeError("Ошибка кодировки: Данные не сохранены")
+        except RuntimeError:
+            log_error("RuntimeError: Данные не сохранены")
+            raise RuntimeError("RuntimeError: Данные не сохранены")
+        except sqlite3.OperationalError:
+            log_error('sqlite3.OperationalError')
+            raise sqlite3.OperationalError()
+        except sqlite3.IntegrityError:
+            log_error('sqlite3.IntegrityError: уже есть такой номер документа')
+            raise sqlite3.IntegrityError('sqlite3.IntegrityError: уже есть такой номер документа')
+        except FileExistsError:
+            log_error('Данные не сохранены')
+            raise FileExistsError
+        except FileNotFoundError:
+            log_error('файл не найден: Данные не сохранены')
+            raise FileNotFoundError
+        except IsADirectoryError:
+            log_error('Ошибка директории: Данные не сохранены')
+            raise IsADirectoryError
+        except PermissionError:
+            log_error('Данные не сохранены')
+            raise PermissionError
+        else:
+            if fn.__name__ == 'save':
+                log_good("Данные сохранены")
+            elif fn.__name__ == '__init__':
+                log_good("Данные записаны")
+    return wrapper
 
 
 class Patient:
+    @my_logging_decorator
     def __init__(self, first_name, last_name, birth_date, phone, document_type, document_id):
-        self.logger_e = logging.getLogger("errors")
-        self.logger_e.setLevel(logging.ERROR)
         self.formatter = logging.Formatter("%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s")
         self.logger_s = logging.getLogger("success")
         self.logger_s.setLevel(logging.INFO)
+        self.db_path = r'patients.db'
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("""CREATE TABLE IF NOT EXISTS patients
+                          (first_name varchar(20) not null, 
+                          last_name varchar(20) not null, 
+                          birth_date varchar(10) not null, 
+                          phone varchar(11) not null, 
+                          document_type varchar(20) not null, 
+                          document_id varchar(10) not null UNIQUE
+                          );""")
+        c.close()
 
-        self.first_name = first_name
-        self.last_name = last_name
-        self.birth_date = birth_date
-        self.phone = phone
-        self.document_type = document_type
-        self.document_id = document_id
-
-        self.log_good("пациент {0} {1} успешно записан".format(self.last_name, self.document_type))
+        if first_name and last_name and birth_date and phone and document_type and document_id:
+            self.first_name = first_name
+            self.last_name = last_name
+            self.birth_date = birth_date
+            self.phone = phone
+            self.document_type = document_type
+            self.document_id = document_id
 
     first_name = property()
 
@@ -27,19 +107,17 @@ class Patient:
         return self._first_name
 
     @first_name.setter
+    @my_logging_decorator
     def first_name(self, first_name):
         if hasattr(self, 'first_name') == False:
             if isinstance(first_name, str):
                 if first_name.strip().isalpha():
                     self._first_name = first_name.strip().title()
                 else:
-                    self.log_error("ValueError:Имя должно быть строкой из букв")
                     raise ValueError('Имя должно быть строкой из букв')
             else:
-                self.log_error('не правильный тип имени')
-                raise TypeError
+                raise TypeError()
         else:
-            self.log_error("AttributeError:Имя не должно меняться")
             raise AttributeError('Имя не должно меняться')
 
     last_name = property()
@@ -49,19 +127,17 @@ class Patient:
         return self._last_name
 
     @last_name.setter
+    @my_logging_decorator
     def last_name(self, last_name):
         if hasattr(self, 'last_name') == False:
             if isinstance(last_name, str):
                 if last_name.strip().isalpha():
                     self._last_name = last_name.strip().title()
                 else:
-                    self.log_error("ValueError:Фамилия должна быть строкой из букв")
                     raise ValueError('Фамилия должна быть строкой из букв')
             else:
-                self.log_error('TypeError: фамия должна быть буквами')
-                raise TypeError
+                raise TypeError()
         else:
-            self.log_error("AttributeError:Фамилия не должна меняться")
             raise AttributeError('Фамилия не должна меняться')
 
     birth_date = property()
@@ -71,6 +147,7 @@ class Patient:
         return self._birth_date
 
     @birth_date.setter
+    @my_logging_decorator
     def birth_date(self, birth_date):
         if isinstance(birth_date, str):
             birth_date = birth_date.strip()
@@ -110,7 +187,6 @@ class Patient:
                     birthday_month = birthday_list[1]
                     birthday_day = birthday_list[0]
                 else:
-                    self.log_error("TypeError:Числа даты рождения неверные")
                     raise TypeError('Числа даты рождения неверные')
                 if len(birthday_month) == 1:
                     birthday_month = '0' + birthday_month
@@ -119,13 +195,11 @@ class Patient:
                 birthday = birthday_year + '-' + birthday_month + '-' + birthday_day
                 self._birth_date = birthday
                 if change:
-                    self.log_good("birth_date changed")
+                    self.log_good('changed')
             else:
-                self.log_error("ValueError:Дата рождения должна быть строкой из разделенных цифр")
                 raise ValueError()
         else:
-            self.log_error("TypeError birh_date")
-            raise TypeError
+            raise TypeError()
 
     phone = property()
 
@@ -134,6 +208,7 @@ class Patient:
         return self._phone
 
     @phone.setter
+    @my_logging_decorator
     def phone(self, phone):
         if isinstance(phone, str):
             phone = phone.strip()
@@ -147,13 +222,11 @@ class Patient:
                 phone = '7' + phone[1:]
                 self._phone = phone
                 if change:
-                    self.log_good("phone changed")
+                    self.log_good('changed')
             else:
-                self.log_error("ValueError:Номер телефона должен быть 11 значным числом  или числами в строке")
                 raise ValueError()
         else:
-            self.log_error("TypeError phone")
-            raise TypeError
+            raise TypeError()
 
 
     document_type = property()
@@ -163,6 +236,7 @@ class Patient:
         return self._document_type
 
     @document_type.setter
+    @my_logging_decorator
     def document_type(self, document_type):
         if isinstance(document_type, str):
             document_type = document_type.strip()
@@ -171,14 +245,11 @@ class Patient:
             if document_type == 'паспорт' or document_type == 'водительское удостоверение' or document_type == 'заграничный паспорт':
                 self._document_type = document_type
                 if change:
-                    self.log_good("doc_type changed")
+                    self.log_good('changed')
             else:
-                self.log_error(
-                    "ValueError:Тип документа личности:'паспорт','водительское удостоверение' или 'заграничный паспорт'")
                 raise ValueError()
         else:
-            self.log_error("TypeError doc_type")
-            raise TypeError
+            raise TypeError()
 
     document_id = property()
 
@@ -187,6 +258,7 @@ class Patient:
         return self._document_id
 
     @document_id.setter
+    @my_logging_decorator
     def document_id(self, document_id):
         if isinstance(document_id, str):
             document_id = document_id.strip()
@@ -198,44 +270,62 @@ class Patient:
             if (document_id.isalpha() == False) and (count == 10) and (
                     self._document_type == "паспорт"):
                 document_id = ''.join(i for i in document_id if i.isdigit())
-                document_id = document_id[:4] + ' ' + document_id[4:]
                 self._document_id = document_id
                 if change:
-                    self.log_good("doc_id changed")
+                    self.log_good('changed')
             elif (document_id.isalpha() == False) and (count == 9) and (
                     self._document_type == "заграничный паспорт"):
                 document_id = ''.join(i for i in document_id if i.isdigit())
-                document_id = document_id[:2] + ' ' + document_id[2:]
                 self._document_id = document_id
                 if change:
-                    self.log_good("doc_id changed")
+                    self.log_good('changed')
             elif (document_id.isalpha() == False) and (count == 10) and (
                     self._document_type == 'водительское удостоверение'):
                 document_id = ''.join(i for i in document_id if i.isdigit())
-                document_id = document_id[:2] + ' ' + document_id[2:4] + ' ' + document_id[4:]
                 self._document_id = document_id
                 if change:
-                    self.log_good("doc_id changed")
+                    self.log_good('changed')
             else:
-                self.log_error(
-                    "ValueError:Номер документа должен быть 10(пасп,вод) или 9(загран) значным числом/числами в строке")
                 raise ValueError(
                     'Номер документа должен быть 10(пасп,вод) или 9(загран) значным числом/числами в строке')
         else:
-            self.log_error("TypeError doc_id")
-            raise TypeError
+            raise TypeError()
 
     @staticmethod
     def create(first_name, last_name, birth_date, phone, document_type, document_id):
         patient = Patient(first_name, last_name, birth_date, phone, document_type, document_id)
         return patient
 
-    def log_error(self, message_e):
-        self.handler_e = logging.FileHandler('error_log.txt', 'a', 'utf-8')
-        self.handler_e.setFormatter(self.formatter)
-        self.logger_e.addHandler(self.handler_e)
-        self.logger_e.error(message_e)
-        self.logger_e.removeHandler(self.handler_e)
+    @my_logging_decorator
+    def save(self):
+        try:
+            conn = sqlite3.connect(self.db_path)
+            c = conn.cursor()
+            c.execute("""INSERT INTO patients (first_name, last_name, birth_date, phone, document_type, document_id)
+                              VALUES ('{}', '{}', '{}', '{}', '{}', '{}');""".format(
+                self.first_name, self.last_name, self.birth_date, self.phone, self.document_type, self.document_id
+            ))
+            conn.commit()
+            c.close()
+        except OSError:
+            raise OSError("Ошибка системы: Данные не сохранены")
+        except UnicodeError:
+            raise UnicodeError("Ошибка кодировки: Данные не сохранены")
+        except RuntimeError:
+            raise RuntimeError("RuntimeError: Данные не сохранены")
+        except sqlite3.OperationalError:
+            raise sqlite3.OperationalError()
+        except sqlite3.IntegrityError:
+            raise sqlite3.IntegrityError('sqlite3.IntegrityError: уже есть такой номер документа')
+        except FileExistsError:
+            raise FileExistsError
+        except FileNotFoundError:
+            raise FileNotFoundError
+        except IsADirectoryError:
+            raise IsADirectoryError
+        except PermissionError:
+            raise PermissionError
+
 
     def log_good(self, message_g):
         self.handler_s = logging.FileHandler('good_log.txt', 'a', 'utf-8')
@@ -244,55 +334,83 @@ class Patient:
         self.logger_s.info(message_g)
         self.logger_s.removeHandler(self.handler_s)
 
-    def save(self):
-        try:
-            with open('patient.csv', 'a', newline='') as csvfile:
-                fieldnames = ['first_name', 'last_name', 'birth_date', 'phone', 'document_type', 'document_id']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writerow(
-                    {'first_name': self.first_name, 'last_name': self.last_name, 'birth_date': self.birth_date,
-                     'phone': self.phone, 'document_type': self.document_type, 'document_id': self.document_id})
-        except OSError:
-            self.log_error("Error: Данные не сохранены")
-            raise OSError("Error: Данные не сохранены")
-        except UnicodeError:
-            self.log_error("Error: Данные не сохранены")
-            raise UnicodeError("Error: Данные не сохранены")
-        except RuntimeError:
-            self.log_error("Error: Данные не сохранены")
-            raise RuntimeError("Error: Данные не сохранены")
-        else:
-            self.log_good("Данные сохранены")
-
 
 class PatientCollection(Patient):
     def __init__(self, path_to_file):
-        self.path_to_file = path_to_file
+        self.db_path = path_to_file
         self.num = 0
         self.lim = None
+        self.conn = sqlite3.connect(self.db_path)
+        self.c = self.conn.cursor()
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        if (self.lim != None and self.num >= self.lim) or os.stat(self.path_to_file).st_size == 0:
+        if (self.lim != None and self.num >= self.lim) or os.stat(self.db_path).st_size == 0:
+            self.c.close()
             raise StopIteration
-        with open(self.path_to_file, newline='') as file:
-            self.num += 1
-            line = file.readlines()[(self.num - 1):self.num]
-            if line == []:
-                raise StopIteration
-            else:
-                letter = line[0]
-                letter = letter.split(',')
-                patient = Patient(*letter)
-                return patient
+        self.num += 1
+        line = self.c.execute("""SELECT first_name, last_name, birth_date, phone, document_type, document_id 
+                        FROM patients
+                        WHERE rowid = {};""".format(self.num))
+        line = list(line)
+        if line == []:
+            self.c.close()
+            raise StopIteration
+        else:
+            letter = list(line[0])
+            patient = Patient(*letter)
+            return patient
 
     def limit(self, n):
         self.lim = n
         return self
 
 
-collection = PatientCollection("patient.csv")
+
+
+
+'''collection = PatientCollection("patient.csv")
 for patient in collection:
-    print(patient.first_name)
+    print(patient.first_name)'''
+a = Patient('nnhhf', 'nhnhj', "1978-01-21", "7-916-000-00-00", 'паспорт', '1008 000009')
+print(a.__dict__)
+a.document_id='1330 083499'
+a.save()
+
+print(a.__dict__)
+#print(a.first_name)
+def select(verbose=True):
+    sql = "SELECT * FROM patients"
+    recs = c.execute(sql)
+    if verbose:
+        for row in recs:
+            print(row)
+db_path = r'patients.db'
+conn = sqlite3.connect(db_path)
+c = conn.cursor()
+select()
+c.close()
+'''collection = PatientCollection("patients.db")
+i = 0
+for patient in collection.limit(4):
+    i += 1
+    print(i, patient.document_id)'''
+
+'''import sqlite3
+
+conn = sqlite3.connect("mydatabase.db")  # или :memory: чтобы сохранить в RAM
+cursor = conn.cursor()
+
+# Создание таблицы
+cursor.execute("""CREATE TABLE IF NOT EXISTS patients
+                  (first_name varchar(20) not null, 
+                  last_name varchar(20) not null, 
+                  birth_date varchar(10) not null, 
+                  phone varchar(11) not null, 
+                  document_type varchar(20) not null, 
+                  document_id varchar(12) not null,
+                  PRIMARY KEY (first_name, last_name));
+               """)'''
+
